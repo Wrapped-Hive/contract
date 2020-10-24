@@ -1,4 +1,4 @@
-pragma solidity >=0.4.22 <0.8.0;
+pragma solidity ^0.5.11;
 
 contract MultiSig {
     event SubmitTransaction(address indexed owner, uint indexed txIndex, address indexed to, bytes data);
@@ -54,12 +54,83 @@ contract MultiSig {
         
         emit SubmitTransaction(msg.sender, txIndex, _to, _data);
     }
-    
-    function confirmTransaction(uint _txIndex) public onlyOwner {
-        
+
+    modifier txExists(uint256 _txIndex) {
+        require(_txIndex < transactions.length, "Tx does not exists");
+        _;
     }
-    
-    function executeTransaction() public onlyOwner {}
-    
-    function revokeConfirmation() public onlyOwner {}
+
+    modifier notExecuted(uint256 _txIndex) {
+        require(!transactions[_txIndex].executed, "Tx already executed");
+        _;
+    }
+
+    modifier confirmed(uint256 _txIndex) {
+        require(
+            transactions[_txIndex].isConfirmed[msg.sender],
+            "You have not confirmed tx"
+        );
+        _;
+    }
+
+    modifier notConfirmed(uint256 _txIndex) {
+        require(
+            !transactions[_txIndex].isConfirmed[msg.sender],
+            "You already confirmed tx"
+        );
+        _;
+    }
+
+    function confirmTransaction(uint256 _txIndex)
+        public
+        onlyOwner
+        txExists(_txIndex)
+        notExecuted(_txIndex)
+        notConfirmed(_txIndex)
+    {
+        Transaction storage transaction = transactions[_txIndex];
+
+        transaction.isConfirmed[msg.sender] = true;
+        transaction.numConfirmations += 1;
+
+        emit ConfirmTransaction(msg.sender, _txIndex);
+    }
+
+    function executeTransaction(uint256 _txIndex)
+        public
+        onlyOwner
+        txExists(_txIndex)
+        notExecuted(_txIndex)
+    {
+        Transaction storage transaction = transactions[_txIndex];
+
+        require(
+            transaction.numConfirmations >= numConfirmationsRequired,
+            "Cannot execute tx"
+        );
+
+        transaction.executed = true;
+
+        (bool success, ) = transaction.to.call.value(transaction.value)(
+            transaction.data
+        );
+        require(success, "Tx failed");
+
+        emit ExecuteTransaction(msg.sender, _txIndex);
+    }
+
+    function revokeConfirmation(uint256 _txIndex)
+        public
+        onlyOwner
+        txExists(_txIndex)
+        notExecuted(_txIndex)
+        confirmed(_txIndex)
+    {
+        Transaction storage transaction = transactions[_txIndex];
+
+        transaction.isConfirmed[msg.sender] = false;
+        transaction.numConfirmations -= 1;
+
+        emit RevokeConfirmation(msg.sender, _txIndex);
+    }
 }
