@@ -65,72 +65,52 @@ contract MultiSig {
         _;
     }
 
-    modifier confirmed(uint256 _txIndex) {
-        require(
-            transactions[_txIndex].isConfirmed[msg.sender],
-            "You have not confirmed tx"
-        );
-        _;
+    function splitSignature(bytes memory _sig) public pure returns (bytes32 r, bytes32 s, uint8 v) {
+        require(_sig.length == 65, "Invalid signatures length");
+
+        // Divide the signature in r, s and v variables
+        assembly {
+            r := mload(add(_sig, 32))
+            s := mload(add(_sig, 64))
+            v := byte(0, mload(add(_sig, 96)))
+        }
     }
 
-    modifier notConfirmed(uint256 _txIndex) {
-        require(
-            !transactions[_txIndex].isConfirmed[msg.sender],
-            "You already confirmed tx"
-        );
-        _;
-    }
+    function execute(bytes32[] hashes, uint8[] signatures, uint256 _txIndex) public {
+        require(signatures.length >= numConfirmationsRequired, "Invalid number of required signatures");
 
-    function confirmTransaction(uint256 _txIndex)
-        public
-        onlyOwner
-        txExists(_txIndex)
-        notExecuted(_txIndex)
-        notConfirmed(_txIndex)
-    {
         Transaction storage transaction = transactions[_txIndex];
 
-        transaction.isConfirmed[msg.sender] = true;
-        transaction.numConfirmations += 1;
+        for (uint i = 0; i < numConfirmationsRequired; i++) {
+            bytes32 signedMsgHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", hashes[i]));
+            (bytes32 r, bytes32 s, uint8 v) = splitSignature(signatures[i]);
+            address recovered = ecrecover(signedMsgHash, v, r, s);
 
-        emit ConfirmTransaction(msg.sender, _txIndex);
-    }
+            if (isOwner[recovered]) {
+                require(
+                    !transactions[_txIndex].isConfirmed[recovered,
+                    "Duplicate signer for one transaction"
+                );
 
-    function executeTransaction(uint256 _txIndex)
-        public
-        onlyOwner
-        txExists(_txIndex)
-        notExecuted(_txIndex)
-    {
-        Transaction storage transaction = transactions[_txIndex];
+                transaction.isConfirmed[recovered] = true;
+                transaction.numConfirmations += 1;
+            }
+            
+        }
 
         require(
             transaction.numConfirmations >= numConfirmationsRequired,
-            "Cannot execute tx"
+            "Cannot execute tx, not enough confirmations"
         );
 
-        transaction.executed = true;
-
-        (bool success, ) = transaction.to.call.value(transaction.value)(
+        (bool success, ) = transaction.to.call.value(0)(
             transaction.data
         );
+
         require(success, "Tx failed");
+        transaction.executed = true;
 
         emit ExecuteTransaction(msg.sender, _txIndex);
     }
 
-    function revokeConfirmation(uint256 _txIndex)
-        public
-        onlyOwner
-        txExists(_txIndex)
-        notExecuted(_txIndex)
-        confirmed(_txIndex)
-    {
-        Transaction storage transaction = transactions[_txIndex];
-
-        transaction.isConfirmed[msg.sender] = false;
-        transaction.numConfirmations -= 1;
-
-        emit RevokeConfirmation(msg.sender, _txIndex);
-    }
 }
