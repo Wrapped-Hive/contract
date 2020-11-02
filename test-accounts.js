@@ -4,38 +4,38 @@ const web3 = new Web3('ws://127.0.0.1:7545')
 const mnemonic =
   'palace vendor pole coach world negativcable skirt chronic pilot engine invest'
 const owners = [
-  '0xF87224bFAbB3333e396C6cF22dC900BAEeB9c750',
-  '0xA0Ad9eA76E594cFD902dE6D1EEcB1317aB294df5',
-  '0xB95e948de90E861B2C3893acb08cE2Ae133449FF',
-  '0x129632A26457186f0Ccc55c7735f7EC9A9E0f49a',
-  '0x85b0311a28C2d43307b7E6a97B62a592EE81278f',
-  '0x888008C079662Eefc9cBada0A2085a5Ccbe5B3fA',
-  '0x57A388605497198d9B74ACF3C4dEE38Cdaf03644',
-  '0xE1913002DdC709eD2Ff83605A03E352cD05b33C2',
-  '0xd67fa539cD446cCAf54DF098CA6ea6A5462D3606',
-  '0x8bcDEEb38d2B29C64f881C6143118Bad74207db3',
+  "0x7c525D67BaF23D51727D4db3f470a37D29166D3D",
+  "0xDB687Db3073C7302D0D4E2F2A77e868d6751C986",
+  "0xeE0D20e4Aec7078ee79A3D11a4cC1d3c436943D7",
+  "0xf0eBc3A8779FB5a39fBf5F7cC28533cc1F35Ba47",
+  "0x853eBb70D633a5583242A78ec0cE59186537Bc75",
+  "0x7d77d4475AB7915E5d2933E7d84bD39E69112cf4",
+  "0x04c6CCD4537eE52d06e49b01B8D0374654c54931",
+  "0x9224D81c3583C12b3f0bAaA3EEC60737477C3fD4",
+  "0x09deE5e65E1dA950d8177C05034B7ef0035E9f13",
+  "0x65aDc38eD73c89522c97ec058bbbA49090e9Ac97"
 ]
 const keys = [
-  '0x9b5b687ac19c3093cfbc0f654b663dd6f418198f9ad770b4372ca883199801c9',
-  '0x9e5914b2b88748cfb7a0e0318a6b0ec9883a0d89cecb7632e7867298bcfa8eaa',
-  '0x5e55360fce9272d5a4bc71b6cb068428441627eb0210efe32c2dee286e2ef74c',
-  '0x890e2eadf869d19ec7c5f948702ff7c11adc6a1395537e996cf7754502aafd40',
-  '0xec061a3070513ca4cb1094b96ca0ce34acb220919dfccc3f62bc7d1da949df9c',
-  '0x2e52b1145ac94bba22215d3dc8110cdd6eeaa525714c9700cd0ce8912b88e888',
-  '0xba766cca27e317bf5f56f2e4b35b818e47ccc0a330f766a517654993bd193414',
-  '0x2afd39e334099561997394245e6b6c609eecafcd7fa32da598567f344b875bfa',
-  '0x3eee86b30b0df707075c2dbda9ebc40dc2170410b81fdc890e0dd7594d4f2f4c',
-  '0x2dc0c8872ac34e61e0abfb35f9711874c2919c12a4f0b4f3e1899a3615bd9521',
+  '0xfa6969a5b375a47949be76d47cc29b6c384df5ace3ea48e1462eb6997d511169',
+  '0x06c90fcbde7de68a02e0c63751cdc318587781f8da3aaf6cdacdfcd4820eb1dd',
+  '0x23dc60d91e78820bac2661520f06807bf76a31e89c5f679146adf5c5ca1d6c80',
+  '0xe317a291d2d4e4e9daa6b2436a1dc84ea6ddc22b9396c2d1034e4458ab4d9602',
+  '0xc24c7c0d2923ffb47bdcc3a14d60f79f3950369bb6b1b3320fdd976889fa613a',
+  '0x58c518bebebe4e1c3f0628df2b87343ce09c9027dc7e9c13aa1d64f586320f36',
+  '0x7c91d0f2328c9dc238d74c45a17b1575e1267e51aacef9c1b93f7322976d8ebe',
+  '0xc4f40115269fa57113e9574189deb7736e72eca4f6168569703f4923deec13f8',
+  '0xfc22106c42775f441d7014756666345e537293ba599589ff5707ccac2bca282a',
+  '0x69bb6e7ad1ea8a6ecc389887c7ede88a0be72e7c27abef5c343e0b12285c09d8'
 ]
 
-const generateSigs = async (nonce, _txIndex, count) => {
+const generateSigs = async (data = [], count = 2) => {
   const sigV = []
   const sigR = []
   const sigS = []
 
   // create three signatures
   // create a SHA3 hash of the message
-  const messageHash = web3.utils.soliditySha3(nonce, _txIndex)
+  const messageHash = web3.utils.soliditySha3(...data)
   // Signs the messageHash with a given account
   for (let index = 0; index < count; index++) {
     const sig = await web3.eth.accounts.sign(messageHash, keys[index])

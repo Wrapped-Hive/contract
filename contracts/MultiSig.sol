@@ -2,20 +2,24 @@ pragma solidity >=0.4.22 <0.7.0;
 
 contract MultiSig {
     event Deposit(address indexed sender, uint256 amount, uint256 balance);
+    event AddedOwner(address indexed owner);
+    event RemovedOwner(address indexed owner);
     event SubmitTransaction(
         address indexed owner,
         uint256 indexed txIndex,
         address indexed to,
         bytes data
     );
-    event ConfirmTransaction(address indexed owner, uint256 indexed txIndex);
-    event RevokeConfirmation(address indexed owner, uint256 indexed txIndex);
+    event SubmitModifyOwner(
+        address indexed owner,
+        uint256 indexed modifyOwnerIndex,
+        bool indexed add
+    );
     event ExecuteTransaction(address indexed owner, uint256 indexed txIndex);
 
-    address[] public owners;
     mapping(address => bool) public isOwner;
-    uint256 public numConfirmationsRequired;
     mapping(address => mapping(uint256 => bool)) seenNonces;
+    uint256 public numOwners;
 
     struct Transaction {
         address to;
@@ -25,17 +29,21 @@ contract MultiSig {
         uint256 numConfirmations;
     }
 
-    Transaction[] public transactions;
+    struct ModifyOwner {
+        address owner;
+        bool executed;
+        bool add;
+        mapping(address => bool) isConfirmed;
+        uint256 numConfirmations;
+    }
 
-    constructor(address[] memory _owners, uint256 _numConfirmationsRequired)
+    Transaction[] public transactions;
+    ModifyOwner[] public modifyOwners;
+
+    constructor(address[] memory _owners)
         public
     {
         require(_owners.length > 0, "Owners required");
-        require(
-            _numConfirmationsRequired > 0 &&
-                _numConfirmationsRequired <= _owners.length,
-            "Invalid number of required confirmations"
-        );
 
         for (uint256 i = 0; i < _owners.length; i++) {
             address owner = _owners[i];
@@ -44,10 +52,8 @@ contract MultiSig {
             require(!isOwner[owner], "Owner not unique");
 
             isOwner[owner] = true;
-            owners.push(owner);
+            numOwners++;
         }
-
-        numConfirmationsRequired = _numConfirmationsRequired;
     }
 
     function() external payable {
@@ -73,6 +79,75 @@ contract MultiSig {
         _;
     }
 
+    function eightyPercentSigned(uint256 sigsCount) internal view returns(bool) {
+        uint eightyPercentRequiredConfirmations = numOwners * 80 / 100;
+        return sigsCount >= eightyPercentRequiredConfirmations;
+    }
+
+    function submitModifyOwner(address _owner, bool add)
+        public
+        onlyOwner
+    {
+        uint256 mOwnerIndex = modifyOwners.length;
+
+        modifyOwners.push(
+            ModifyOwner({
+                owner: _owner,
+                add: add,
+                executed: false,
+                numConfirmations: 0
+            })
+        );
+
+        emit SubmitModifyOwner(_owner, mOwnerIndex, add);
+    }
+
+    function modifyOwner(uint256 nonce, uint256 _mOwnerIndex,
+        uint8[] memory sigV,
+        bytes32[] memory sigR,
+        bytes32[] memory sigS) public onlyOwner {
+        ModifyOwner storage modifingOwner = modifyOwners[_mOwnerIndex];
+        address owner = modifingOwner.owner;
+
+        for (uint256 i = 0; i < sigR.length; i++) {
+            address recovered = verifyModifyOwnerSigs(
+                nonce,
+                _mOwnerIndex,
+                modifingOwner.add,
+                sigV[i],
+                sigR[i],
+                sigS[i]
+            );
+
+            if (isOwner[recovered]) {
+                require(
+                    !modifingOwner.isConfirmed[recovered],
+                    "Duplicate signer for modifying owner"
+                );
+
+                modifingOwner.isConfirmed[recovered] = true;
+                modifingOwner.numConfirmations += 1;
+            }
+        }
+
+        bool pass = eightyPercentSigned(modifingOwner.numConfirmations);
+        require(pass, 'Not enough confirmation signatures');
+
+        if (modifingOwner.add == true) {
+            require(!isOwner[owner], "Already a owner");
+
+            isOwner[owner] = true;
+            numOwners++;
+        emit AddedOwner(owner);
+        } else {
+            isOwner[owner] = false;
+            numOwners--;
+        emit RemovedOwner(owner);
+        }
+
+        modifingOwner.executed = true;
+    }
+
     function submitTransaction(address _to, bytes memory _data)
         public
         onlyOwner
@@ -91,70 +166,22 @@ contract MultiSig {
         emit SubmitTransaction(msg.sender, txIndex, _to, _data);
     }
 
-    function confirmTransaction(uint256 _txIndex)
-        public
-        onlyOwner
-        txExists(_txIndex)
-        notExecuted(_txIndex)
-    {
-        Transaction storage transaction = transactions[_txIndex];
-
-        transaction.isConfirmed[msg.sender] = true;
-        transaction.numConfirmations += 1;
-
-        emit ConfirmTransaction(msg.sender, _txIndex);
-    }
-
-    function revokeConfirmation(uint256 _txIndex)
-        public
-        onlyOwner
-        txExists(_txIndex)
-        notExecuted(_txIndex)
-    {
-        Transaction storage transaction = transactions[_txIndex];
-
-        transaction.isConfirmed[msg.sender] = false;
-        transaction.numConfirmations -= 1;
-
-        emit RevokeConfirmation(msg.sender, _txIndex);
-    }
-
-    function executeTransaction(uint256 _txIndex)
-        public
-        onlyOwner
-        txExists(_txIndex)
-        notExecuted(_txIndex)
-    {
-        Transaction storage transaction = transactions[_txIndex];
-
-        require(
-            transaction.numConfirmations >= numConfirmationsRequired,
-            "Cannot execute tx"
-        );
-
-        transaction.executed = true;
-
-        (bool success, ) = transaction.to.call.value(0)(transaction.data);
-        require(success, "Tx failed");
-
-        emit ExecuteTransaction(msg.sender, _txIndex);
-    }
-
-    function executeWithOffChainSigs(
+    function execute(
         uint256 nonce,
         uint256 _txIndex,
         uint8[] memory sigV,
         bytes32[] memory sigR,
         bytes32[] memory sigS
-    ) public txExists(_txIndex) notExecuted(_txIndex) {
-        require(
-            sigV.length >= numConfirmationsRequired,
-            "Invalid number of required signatures"
-        );
+    ) public onlyOwner txExists(_txIndex) notExecuted(_txIndex) {
+        require(sigV.length == sigR.length, 'Signatures mismatch');
+        require(sigR.length == sigS.length, 'Signatures mismatch');
+
+        bool pass = eightyPercentSigned(sigV.length);
+        require(pass, 'Cannot execute tx, not enough confirmation signatures');
 
         Transaction storage transaction = transactions[_txIndex];
 
-        for (uint256 i = 0; i < numConfirmationsRequired; i++) {
+        for (uint256 i = 0; i < sigV.length; i++) {
             address recovered = verify(
                 nonce,
                 _txIndex,
@@ -174,10 +201,8 @@ contract MultiSig {
             }
         }
 
-        require(
-            transaction.numConfirmations >= numConfirmationsRequired,
-            "Cannot execute tx, not enough confirmations"
-        );
+        bool passII = eightyPercentSigned(transaction.numConfirmations);
+        require(passII, 'Cannot execute tx, not enough confirmation signatures');
 
         (bool success, ) = transaction.to.call.value(0)(transaction.data);
 
@@ -200,9 +225,27 @@ contract MultiSig {
             abi.encodePacked("\x19Ethereum Signed Message:\n32", hash)
         );
 
-        // Verify that the message's signer is the owner of the order
+        address signer = ecrecover(messageHash, sigV, sigR, sigS);
 
-        // address signer = recover(messageHash, signature);
+        require(!seenNonces[signer][nonce], "Duplicate nonce");
+        seenNonces[signer][nonce] = true;
+        return signer;
+    }
+
+    function verifyModifyOwnerSigs(
+        uint256 nonce,
+        uint256 _mOwnerIndex,
+        bool _modifyOwner,
+        uint8 sigV,
+        bytes32 sigR,
+        bytes32 sigS
+    ) public returns (address) {
+        // This recreates the message hash that was signed on the client.
+        bytes32 hash = keccak256(abi.encodePacked(nonce, _mOwnerIndex, _modifyOwner));
+        bytes32 messageHash = keccak256(
+            abi.encodePacked("\x19Ethereum Signed Message:\n32", hash)
+        );
+
         address signer = ecrecover(messageHash, sigV, sigR, sigS);
 
         require(!seenNonces[signer][nonce], "Duplicate nonce");
