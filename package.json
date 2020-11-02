@@ -1,0 +1,29 @@
+{
+  "name": "WrappedHive",
+  "version": "1.0.0",
+  "description": "",
+  "main": "truffle-config.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Wrapped-Hive/contract.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Wrapped-Hive/contract/issues"
+  },
+  "homepage": "https://github.com/Wrapped-Hive/contract#readme",
+  "dependencies": {
+    "chai": "^4.2.0",
+    "chai-as-promised": "^7.1.1",
+    "ethereumjs-util": "^7.0.7",
+    "web3": "^1.3.0"
+  }
+}
