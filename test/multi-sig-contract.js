@@ -16,7 +16,6 @@ contract('MultiSig', () => {
   })
 
   describe('ModifyOwner', () => {
-    const nonce = 10
     const _txIndex = 0
     let sigV = []
     let sigR = []
@@ -44,14 +43,13 @@ contract('MultiSig', () => {
       sigR = []
       sigS = []
       // call an external function to generate VRS signatures using test account details
-      const sigs = await generateSigs([nonce, _txIndex, false], (count = owners.length - 2))
+      const sigs = await generateSigs([playOwner, false], (count = owners.length - 2))
       sigV = sigs.sigV
       sigR = sigs.sigR
       sigS = sigs.sigS
 
       await instance.submitModifyOwner(playOwner, false, { from: owners[0] })
       const res =  await instance.modifyOwner(
-        nonce,
         _txIndex,
         sigV,
         sigR,
@@ -70,20 +68,20 @@ contract('MultiSig', () => {
 
     // Add owner
     it('2. Should add owner', async () => {
+      const acc = "0x65aDc38eD73c89522c97ec058bbbA49090e9Ac97"
+
       sigV = []
       sigR = []
       sigS = []
       // call an external function to generate VRS signatures using test account details
-      const sigs = await generateSigs([nonce, _txIndex, true], (count = owners.length - 2))
+      const sigs = await generateSigs([acc, true], (count = owners.length - 2))
       sigV = sigs.sigV
       sigR = sigs.sigR
       sigS = sigs.sigS
 
-      const acc = "0x65aDc38eD73c89522c97ec058bbbA49090e9Ac97"
       await instance.submitModifyOwner(acc, true, { from: owners[0] })
 
       const res =  await instance.modifyOwner(
-        nonce,
         _txIndex,
         sigV,
         sigR,
@@ -106,7 +104,7 @@ contract('MultiSig', () => {
       sigR = []
       sigS = []
       // call an external function to generate VRS signatures using test account details
-      const sigs = await generateSigs([nonce, _txIndex, false], (count = owners.length - 2))
+      const sigs = await generateSigs([playOwner, false], (count = owners.length - 2))
       sigV = sigs.sigV
       sigR = sigs.sigR
       sigS = sigs.sigS
@@ -114,7 +112,6 @@ contract('MultiSig', () => {
       await instance.submitModifyOwner(playOwner, false, { from: owners[0] })
       
       await instance.modifyOwner(
-        nonce,
         _txIndex,
         sigV,
         sigR,
@@ -123,7 +120,6 @@ contract('MultiSig', () => {
       )
 
       await expect(instance.modifyOwner(
-        nonce,
         _txIndex,
         sigV,
         sigR,
@@ -136,7 +132,6 @@ contract('MultiSig', () => {
     // modifyOwner schould fail if not called by a owner
     it('4. Should reject if not called by owner', async () => {
       await expect(instance.modifyOwner(
-        nonce,
         _txIndex,
         sigV,
         sigR,
@@ -148,7 +143,6 @@ contract('MultiSig', () => {
   })
 
   describe('execute', () => {
-    const nonce = 10
     const _txIndex = 0
     let sigV = []
     let sigR = []
@@ -164,7 +158,7 @@ contract('MultiSig', () => {
       sigR = []
       sigS = []
       // call an external function to generate VRS signatures using test account details
-      const sigs = await generateSigs([nonce, _txIndex], (count = owners.length - 2))
+      const sigs = await generateSigs([to, _txIndex], (count = owners.length - 2))
       sigV = sigs.sigV
       sigR = sigs.sigR
       sigS = sigs.sigS
@@ -173,7 +167,6 @@ contract('MultiSig', () => {
     // execute transaction using offchain signatures schould succeed
     it('5. Should execute with offchain signatures', async () => {
       const res = await instance.execute(
-        nonce,
         _txIndex,
         sigV,
         sigR,
@@ -193,7 +186,6 @@ contract('MultiSig', () => {
     // execute transaction using offchain signatures schould fail if transaction already executed
     it('6. Should reject if already executed', async () => {
       await instance.execute(
-        nonce,
         _txIndex,
         sigV,
         sigR,
@@ -202,7 +194,7 @@ contract('MultiSig', () => {
       )
 
       await expect(
-        instance.execute(nonce, _txIndex, sigV, sigR, sigS, {
+        instance.execute(_txIndex, sigV, sigR, sigS, {
           from: owners[0],
         })
       ).to.be.rejected
@@ -211,7 +203,7 @@ contract('MultiSig', () => {
     // execute transaction schould fail if not called by owner
     it('7. Should reject if not called by owner', async () => {
       await expect(
-        instance.execute(nonce, _txIndex, sigV, sigR, sigS, {
+        instance.execute(_txIndex, sigV, sigR, sigS, {
           from: owners[9],
         })
       ).to.be.rejected
@@ -224,7 +216,7 @@ contract('MultiSig', () => {
       sigS.pop()
       
       await expect(
-        instance.execute(nonce, _txIndex, sigV, sigR, sigS, {
+        instance.execute(_txIndex, sigV, sigR, sigS, {
           from: owners[0],
         })
       ).to.be.rejected

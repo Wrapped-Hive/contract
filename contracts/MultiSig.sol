@@ -203,7 +203,7 @@ contract MultiSig {
         for (uint256 i = 0; i < sigV.length; i++) {
             address recovered = verify(
                 transaction.to,
-                transaction.data,
+                _txIndex,
                 sigV[i],
                 sigR[i],
                 sigS[i]
@@ -236,13 +236,13 @@ contract MultiSig {
 
     function verify(
         address _to,
-        bytes memory data,
+        uint256 _txIndex,
         uint8 sigV,
         bytes32 sigR,
         bytes32 sigS
     ) internal pure returns (address) {
         // This recreates the message hash that was signed on the client.
-        bytes32 hash = keccak256(abi.encodePacked(_to, data));
+        bytes32 hash = keccak256(abi.encodePacked(_to, _txIndex));
         bytes32 messageHash = keccak256(
             abi.encodePacked("\x19Ethereum Signed Message:\n32", hash)
         );
@@ -253,14 +253,14 @@ contract MultiSig {
 
     function verifyModifyOwnerSigs(
         address owner,
-        bool _modifyOwner,
+        bool add,
         uint8 sigV,
         bytes32 sigR,
         bytes32 sigS
     ) internal pure returns (address) {
         // This recreates the message hash that was signed on the client.
         bytes32 hash = keccak256(
-            abi.encodePacked(owner, _modifyOwner)
+            abi.encodePacked(owner, add)
         );
         bytes32 messageHash = keccak256(
             abi.encodePacked("\x19Ethereum Signed Message:\n32", hash)
