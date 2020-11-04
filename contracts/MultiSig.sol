@@ -18,7 +18,6 @@ contract MultiSig {
     event ExecuteTransaction(address indexed owner, uint256 indexed txIndex);
 
     mapping(address => bool) public isOwner;
-    mapping(address => mapping(uint256 => bool)) seenNonces;
     uint256 public numOwners;
 
     struct Transaction {
@@ -102,14 +101,6 @@ contract MultiSig {
         return sigsCount >= eightyPercentRequiredConfirmations;
     }
 
-    function getModifyOwnersCount() public view returns (uint256) {
-        return modifyOwners.length;
-    }
-
-    function getTransactionsCount() public view returns (uint256) {
-        return transactions.length;
-    }
-
     function submitModifyOwner(address _owner, bool add) public onlyOwner {
         uint256 mOwnerIndex = modifyOwners.length;
 
@@ -126,7 +117,6 @@ contract MultiSig {
     }
 
     function modifyOwner(
-        uint256 nonce,
         uint256 _mOwnerIndex,
         uint8[] memory sigV,
         bytes32[] memory sigR,
@@ -142,8 +132,7 @@ contract MultiSig {
 
         for (uint256 i = 0; i < sigR.length; i++) {
             address recovered = verifyModifyOwnerSigs(
-                nonce,
-                _mOwnerIndex,
+                owner,
                 modifingOwner.add,
                 sigV[i],
                 sigR[i],
@@ -198,7 +187,6 @@ contract MultiSig {
     }
 
     function execute(
-        uint256 nonce,
         uint256 _txIndex,
         uint8[] memory sigV,
         bytes32[] memory sigR,
@@ -214,8 +202,8 @@ contract MultiSig {
 
         for (uint256 i = 0; i < sigV.length; i++) {
             address recovered = verify(
-                nonce,
-                _txIndex,
+                transaction.to,
+                transaction.data,
                 sigV[i],
                 sigR[i],
                 sigS[i]
@@ -247,45 +235,38 @@ contract MultiSig {
     }
 
     function verify(
-        uint256 nonce,
-        uint256 _txIndex,
+        address _to,
+        bytes memory data,
         uint8 sigV,
         bytes32 sigR,
         bytes32 sigS
-    ) public returns (address) {
+    ) internal pure returns (address) {
         // This recreates the message hash that was signed on the client.
-        bytes32 hash = keccak256(abi.encodePacked(nonce, _txIndex));
+        bytes32 hash = keccak256(abi.encodePacked(_to, data));
         bytes32 messageHash = keccak256(
             abi.encodePacked("\x19Ethereum Signed Message:\n32", hash)
         );
 
         address signer = ecrecover(messageHash, sigV, sigR, sigS);
-
-        require(!seenNonces[signer][nonce], "Duplicate nonce");
-        seenNonces[signer][nonce] = true;
         return signer;
     }
 
     function verifyModifyOwnerSigs(
-        uint256 nonce,
-        uint256 _mOwnerIndex,
+        address owner,
         bool _modifyOwner,
         uint8 sigV,
         bytes32 sigR,
         bytes32 sigS
-    ) public returns (address) {
+    ) internal pure returns (address) {
         // This recreates the message hash that was signed on the client.
         bytes32 hash = keccak256(
-            abi.encodePacked(nonce, _mOwnerIndex, _modifyOwner)
+            abi.encodePacked(owner, _modifyOwner)
         );
         bytes32 messageHash = keccak256(
             abi.encodePacked("\x19Ethereum Signed Message:\n32", hash)
         );
 
         address signer = ecrecover(messageHash, sigV, sigR, sigS);
-
-        require(!seenNonces[signer][nonce], "Duplicate nonce");
-        seenNonces[signer][nonce] = true;
         return signer;
     }
 }
