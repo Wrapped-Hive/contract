@@ -40,9 +40,7 @@ contract MultiSig {
     Transaction[] public transactions;
     ModifyOwner[] public modifyOwners;
 
-    constructor(address[] memory _owners)
-        public
-    {
+    constructor(address[] memory _owners) public {
         require(_owners.length > 0, "Owners required");
 
         for (uint256 i = 0; i < _owners.length; i++) {
@@ -79,23 +77,40 @@ contract MultiSig {
         _;
     }
 
-    function eightyPercentSigned(uint256 sigsCount) internal view returns(bool) {
-        uint eightyPercentRequiredConfirmations = numOwners * 80 / 100;
+    modifier modifyOwnerExists(uint256 _modifyOwnerIndex) {
+        require(
+            _modifyOwnerIndex < modifyOwners.length,
+            "Modify Owner does not exists"
+        );
+        _;
+    }
+
+    modifier modifyOwnerNotExecuted(uint256 _modifyOwnerIndex) {
+        require(
+            !modifyOwners[_modifyOwnerIndex].executed,
+            "Modify Owner already executed"
+        );
+        _;
+    }
+
+    function eightyPercentSigned(uint256 sigsCount)
+        internal
+        view
+        returns (bool)
+    {
+        uint256 eightyPercentRequiredConfirmations = (numOwners * 80) / 100;
         return sigsCount >= eightyPercentRequiredConfirmations;
     }
 
-    function getModifyOwnersCount() public view returns(uint256) {
+    function getModifyOwnersCount() public view returns (uint256) {
         return modifyOwners.length;
     }
 
-    function getTransactionsCount() public view returns(uint256) {
+    function getTransactionsCount() public view returns (uint256) {
         return transactions.length;
     }
 
-    function submitModifyOwner(address _owner, bool add)
-        public
-        onlyOwner
-    {
+    function submitModifyOwner(address _owner, bool add) public onlyOwner {
         uint256 mOwnerIndex = modifyOwners.length;
 
         modifyOwners.push(
@@ -110,10 +125,18 @@ contract MultiSig {
         emit SubmitModifyOwner(_owner, mOwnerIndex, add);
     }
 
-    function modifyOwner(uint256 nonce, uint256 _mOwnerIndex,
+    function modifyOwner(
+        uint256 nonce,
+        uint256 _mOwnerIndex,
         uint8[] memory sigV,
         bytes32[] memory sigR,
-        bytes32[] memory sigS) public onlyOwner {
+        bytes32[] memory sigS
+    )
+        public
+        onlyOwner
+        modifyOwnerExists(_mOwnerIndex)
+        modifyOwnerNotExecuted(_mOwnerIndex)
+    {
         ModifyOwner storage modifingOwner = modifyOwners[_mOwnerIndex];
         address owner = modifingOwner.owner;
 
@@ -139,18 +162,18 @@ contract MultiSig {
         }
 
         bool pass = eightyPercentSigned(modifingOwner.numConfirmations);
-        require(pass, 'Not enough confirmation signatures');
+        require(pass, "Not enough confirmation signatures");
 
         if (modifingOwner.add == true) {
             require(!isOwner[owner], "Already a owner");
 
             isOwner[owner] = true;
             numOwners++;
-        emit AddedOwner(owner);
+            emit AddedOwner(owner);
         } else {
             isOwner[owner] = false;
             numOwners--;
-        emit RemovedOwner(owner);
+            emit RemovedOwner(owner);
         }
 
         modifingOwner.executed = true;
@@ -181,11 +204,11 @@ contract MultiSig {
         bytes32[] memory sigR,
         bytes32[] memory sigS
     ) public onlyOwner txExists(_txIndex) notExecuted(_txIndex) {
-        require(sigV.length == sigR.length, 'Signatures mismatch');
-        require(sigR.length == sigS.length, 'Signatures mismatch');
+        require(sigV.length == sigR.length, "Signatures mismatch");
+        require(sigR.length == sigS.length, "Signatures mismatch");
 
         bool pass = eightyPercentSigned(sigV.length);
-        require(pass, 'Cannot execute tx, not enough confirmation signatures');
+        require(pass, "Cannot execute tx, not enough confirmation signatures");
 
         Transaction storage transaction = transactions[_txIndex];
 
@@ -210,7 +233,10 @@ contract MultiSig {
         }
 
         bool passII = eightyPercentSigned(transaction.numConfirmations);
-        require(passII, 'Cannot execute tx, not enough confirmation signatures');
+        require(
+            passII,
+            "Cannot execute tx, not enough confirmation signatures"
+        );
 
         (bool success, ) = transaction.to.call.value(0)(transaction.data);
 
@@ -249,7 +275,9 @@ contract MultiSig {
         bytes32 sigS
     ) public returns (address) {
         // This recreates the message hash that was signed on the client.
-        bytes32 hash = keccak256(abi.encodePacked(nonce, _mOwnerIndex, _modifyOwner));
+        bytes32 hash = keccak256(
+            abi.encodePacked(nonce, _mOwnerIndex, _modifyOwner)
+        );
         bytes32 messageHash = keccak256(
             abi.encodePacked("\x19Ethereum Signed Message:\n32", hash)
         );
