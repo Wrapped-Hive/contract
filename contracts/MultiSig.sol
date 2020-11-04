@@ -84,6 +84,14 @@ contract MultiSig {
         return sigsCount >= eightyPercentRequiredConfirmations;
     }
 
+    function getModifyOwnersCount() public view returns(uint256) {
+        return modifyOwners.length;
+    }
+
+    function getTransactionsCount() public view returns(uint256) {
+        return transactions.length;
+    }
+
     function submitModifyOwner(address _owner, bool add)
         public
         onlyOwner
